@@ -1,15 +1,77 @@
 <html>
     <head>
         <script src="https://d3js.org/d3.v6.min.js"></script>
+        <style>
+            #tooltip {
+                position: absolute;
+                text-align: center;
+                width: auto;
+                height: auto;
+                padding: 8px;
+                font: 12px sans-serif;
+                background: lightsteelblue;
+                border: 0px;
+                border-radius: 8px;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.6s;
+            }
+        </style>
     </head>
     <body>
-        <p>
-            HI
-        </p>
-       <script>
-        d3.csv("vehPopCounty.csv").then(function(data) {
-            console.log(data);
-        });
-       </script>
+        <h1>Project 3</h1>
+        <div id="map">
+            <script>
+                function drawMap(geoData, vehData) {
+                    const svg = d3.select('#map').append('svg')
+                        .attr('width', 800)
+                        .attr('height', 600);
+
+                    const tooltip = d3.select('#tooltip');
+
+                    const projection = d3.geoMercator()
+                        .fitSize([800, 600], geoData);
+                    const pathGenerator = d3.geoPath().projection(projection);
+
+                    const colorScale = d3.scaleQuantize()
+                    .domain([0, d3.max(vehData, d => d["Number of Vehicles"])])
+                    .range(d3.schemeBlues[9]);
+
+                    svg.selectAll('.region')
+                        .data(geoData.features)
+                        .enter().append('path')
+                            .attr('d', pathGenerator)
+                            .attr('fill', d => {
+                                // Determine color based on data
+                                const data = vehData.find(item => item.County === d.properties.name);
+                                return data ? colorScale(data["Number of Vehicles"]) : 'gray';
+                            })
+                            .on('mouseover', function(event, d) {
+                            const data = vehData.find(item => item.County === d.properties.name);
+                            tooltip.style('opacity', 1)
+                                   .html(data ? `<strong>${d.properties.name}</strong><br/>Number of Electric Vehicles: ${data["Number of Vehicles"]}` : `<strong>${d.properties.name}</strong><br/>No data available`)
+                                   .style('left', (event.pageX + 10) + 'px')
+                                   .style('top', (event.pageY - 28) + 'px');
+                            })
+                            .on('mouseout', function() {
+                                tooltip.style('opacity', 0);
+                            });
+                }
+                async function loadData() {
+                    const geoData = await d3.json('https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/california-counties.geojson');
+                    let vehData = await d3.csv("data/vehPopCounty.csv");
+
+                    // Filter and transform vehData after it's loaded
+                    vehData = vehData.map(d => {
+                        d.Year = +d.Year; // Convert Year to number
+                        d["Number of Vehicles"] = +d["Number of Vehicles"]; // Ensure Number of Vehicles is a number
+                        return d;
+                    }).filter(d => d.Year === 2010 && d["Fuel Type"] === "Electric");
+
+                    drawMap(geoData, vehData);
+                }
+                loadData();
+            </script>
+        </div>
     </body>
 </html>
